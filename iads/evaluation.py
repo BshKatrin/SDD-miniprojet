@@ -75,7 +75,7 @@ def crossval_strat(X, Y, n_iterations, iteration):
             np.concatenate(test_label))
 
 
-def validation_croisee(C, DS, nb_iter, verbose=False):
+def validation_croisee(C, DS, nb_iter, verbose=False, confusion_matrix=False):
     """ Classifieur * tuple[array, array] * int * bool -> tuple[ list[float], float, float]
     Performe la validation croisée.
 
@@ -84,7 +84,10 @@ def validation_croisee(C, DS, nb_iter, verbose=False):
         C : Instance du Classifier
         DS : dataset et les labels. Ces arrays doivent avoir le même nombre des lignes
         nb_iter : Nombre d'itération à faire pour la validation croisée.
-        print: Si True, afficher chaque itération de la validation croisée. Si False, afficher rien
+        verbose: Si True, afficher chaque itération de la validation croisée. Si False, afficher rien
+        confusion_matrix : Si True, calculer la moyenne de la matrice de confusion.
+            Si False, ne pas prendre en compte cette matrice.
+
     Return
     ------
         list[float] : Liste de taille 'nb_iter' avec les taux de bonne classification obtenus
@@ -94,20 +97,36 @@ def validation_croisee(C, DS, nb_iter, verbose=False):
 
     perf = []
     C_copy = deepcopy(C)
+    classes = np.unique(DS[1])
+
+    if confusion_matrix:  # init -> empty confusion matrix (filled with 0)
+        conf_matrix_mean = pd.DataFrame(0, index=pd.Index(
+            classes, name="Actual"), columns=pd.Index(classes, name="Predicted"))
 
     if verbose:
         print("------ affichage validation croisée")
+
     for i in range(nb_iter):
 
         desc_train, labels_train, desc_test, labels_test = crossval_strat(*DS, nb_iter, i)
-        print("crossval strat ok")
         C_copy.train(desc_train, labels_train)
 
-        accuracy = C_copy.accuracy(desc_test, labels_test)
+        data = C_copy.accuracy(desc_test, labels_test, confusion_matrix=confusion_matrix)
+
+        if not confusion_matrix:
+            accuracy = data
+        else:
+            accuracy, conf_matrix = data
+            conf_matrix_mean += conf_matrix
+
         perf.append(accuracy)
+
         if verbose:
             print(f"Itération {i}: taille de base app.={desc_train.shape[0]}\t"
                   f"taille base test={desc_test.shape[0]}\tTaux de bonne classif: {accuracy:.4f}")
     if verbose:
         print("------ fin affichage validation croisée")
-    return perf, *analyse_perfs(np.array(perf))
+
+    if not confusion_matrix:
+        return perf, *analyse_perfs(np.array(perf))
+    return perf, *analyse_perfs(np.array(perf)), conf_matrix_mean / nb_iter

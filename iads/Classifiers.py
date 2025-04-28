@@ -25,6 +25,25 @@ from scipy.stats import entropy
 from typing import Dict
 
 
+def calc_conf_matrix(true_labels: np.ndarray, predict_labels: np.ndarray, classes: np.ndarray) -> pd.DataFrame:
+    """Calcule la matrice de confusion (sous la forme de crosstab de pandas).
+
+    Parameters
+    ----------
+        true_labels : les labels réels des examples
+        predict_labels : les labels prédits des examples
+        classes : classes (uniques) présents dans le dataset
+
+    Returns
+        Matrice de confusion sous la forme de DataFrame formé à l'aide de pandas.crosstab
+    """
+
+    actual_pd = pd.Categorical(true_labels, categories=classes)
+    pred_pd = pd.Categorical(predict_labels, categories=classes)
+
+    return pd.crosstab(actual_pd, pred_pd, normalize=True, rownames=["Actual"], colnames=["Predicted"], dropna=False)
+
+
 class Classifier:
     """ Classe (abstraite) pour représenter un classifieur
         Attention: cette classe est ne doit pas être instanciée.
@@ -58,15 +77,24 @@ class Classifier:
         """
         raise NotImplementedError("Please Implement this method")
 
-    def accuracy(self, desc_set, label_set):
+    def accuracy(self, desc_set, label_set, confusion_matrix=False):
         """ Permet de calculer la qualité du système sur un dataset donné
             desc_set: ndarray avec des descriptions
             label_set: ndarray avec les labels correspondants
-            Hypothèse: desc_set et label_set ont le même nombre de lignes
+            Hypothèse: desc_set et label_set ont le même nombre de lignes.
+
+            Si confusion_matrix = False, alors calcule l'accuracy.
+            Si confusion_matrix = True, alors calcule la matrice de confusion. 
         """
         # predictions = np.apply_along_axis(self.predict, axis=1, arr=desc_set)
         predictions = np.array([self.predict(row) for row in desc_set])
-        return np.where(predictions == label_set)[0].size / label_set.size
+        accuracy = np.where(predictions == label_set)[0].size / label_set.size
+        classes = np.unique(label_set)
+
+        if not confusion_matrix:
+            return accuracy
+
+        return accuracy, calc_conf_matrix(label_set, predictions, classes)
 
 
 class ClassifierKNN(Classifier):
@@ -268,11 +296,6 @@ class ClassifierPerceptron(Classifier):
 
             if self.predict(desc_set[i]) != label_set[i]:
                 self.w = self.w + label_set[i] * desc_set[i] * self.learning_rate
-                # if self.sparse:
-                #     self.w = self.w + label_set[i] * desc_set[i].toarray() * self.learning_rate
-                # else:
-                #     self.w = self.w + label_set[i] * desc_set[i] * self.learning_rate
-                # self.allw.append(deepcopy(self.w))
 
     def train(self, desc_set, label_set, nb_max=30, seuil=0.001):
         """ Apprentissage itératif du perceptron sur le dataset donné.
@@ -584,7 +607,7 @@ def construit_AD(X, Y, epsilon, LNoms=[]):
     """
 
     entropie_ens = entropie(Y)
-    print("Entropie", entropie_ens)
+    # print("Entropie", entropie_ens)
     if (entropie_ens <= epsilon):
         # ARRET : on crée une feuille
         noeud = NoeudCategoriel(-1, "Label")
@@ -623,7 +646,7 @@ def construit_AD_num(X, Y, epsilon, LNoms=[]):
     (nb_lig, nb_col) = X.shape
 
     entropie_classe = entropie(Y)
-    print(entropie_classe)
+    # print(entropie_classe)
     if (entropie_classe <= epsilon) or (nb_lig <= 1):
         # ARRET : on crée une feuille
         # print("Feuille")
@@ -639,9 +662,7 @@ def construit_AD_num(X, Y, epsilon, LNoms=[]):
             # values, counts = np.unique(Y[:, num_attr], return_counts=True)
             # print(values, counts)
             # if counts.size >= 2:  # au moins 2 valeurs uniques
-            print(num_attr)
-            if num_attr == nb_col - 1:
-                print("Here done", i_best)
+
             # partition
             (best_seuil, seuil_ent), liste_vals = discretise(X, Y, num_attr)  # peut renvoyer ((None , +Inf), ([],[]))
             # print("Best", best_seuil)
@@ -775,19 +796,28 @@ class ClassifierArbreNumerique(Classifier):
         """
         return self.racine.classifie(x)
 
-    def accuracy(self, desc_set, label_set):  # Version propre à aux arbres
-        """ Permet de calculer la qualité du système sur un dataset donné
-            desc_set: ndarray avec des descriptions
-            label_set: ndarray avec les labels correspondants
-            Hypothèse: desc_set et label_set ont le même nombre de lignes
-        """
-        nb_ok = 0
-        for i in range(desc_set.shape[0]):
-            # print(self.predict(desc_set[i, :]), label_set[i])
-            if self.predict(desc_set[i, :]) == label_set[i]:
-                nb_ok = nb_ok+1
-        acc = nb_ok/(desc_set.shape[0] * 1.0)
-        return acc
+    # def accuracy(self, desc_set, label_set, confusion_matrix=False):  # Version propre à aux arbres
+    #     """ Permet de calculer la qualité du système sur un dataset donné
+    #         desc_set: ndarray avec des descriptions
+    #         label_set: ndarray avec les labels correspondants
+    #         Hypothèse: desc_set et label_set ont le même nombre de lignes
+    #     """
+    #     nb_ok = 0
+    #     if confusion_matrix:
+    #         predictions = []
+
+    #     for i in range(desc_set.shape[0]):
+    #         pred_label = self.predict(desc_set[i, :])
+    #         if pred_label == label_set[i]:
+    #             nb_ok = nb_ok+1
+    #             if confusion_matrix:
+    #                 predictions.append(pred_label)
+
+    #     acc = nb_ok/(desc_set.shape[0] * 1.0)
+
+    #     if not confusion_matrix:
+    #         return acc
+    #     return acc, calc_conf_matrix(label_set, predictions, np.unique(label_set))
 
     def number_leaves(self):
         """ rend le nombre de feuilles de l'arbre
@@ -849,10 +879,11 @@ def discretise(m_desc, m_class, num_col):
             -> liste_entropies (List[float]): la liste des entropies correspondantes aux seuils regardés
             (les 2 listes correspondent et sont donc de même taille)
             REMARQUE: dans le cas où il y a moins de 2 valeurs d'attribut dans m_desc, aucune discrétisation
-            n'est possible, on rend donc ((None , +Inf), ([],[])) dans ce cas
+            n'est possible, on rend donc ((None , +Inf), ([],[])) dans ce cas            
     """
     # Liste triée des valeurs différentes présentes dans m_desc:
     l_valeurs = np.unique(m_desc[:, num_col])
+
     # Si on a moins de 2 valeurs, pas la peine de discrétiser:
     if (len(l_valeurs) < 2):
         return ((None, float('Inf')), ([], []))
@@ -876,8 +907,9 @@ def discretise(m_desc, m_class, num_col):
         # calcul de l'entropie de la coupure
         val_entropie_inf = entropie(cl_inf)  # entropie de l'ensemble des inf
         val_entropie_sup = entropie(cl_sup)  # entropie de l'ensemble des sup
-        val_entropie = (nb_inf / float(nb_exemples)) * val_entropie_inf
-        + (nb_sup / float(nb_exemples)) * val_entropie_sup
+
+        val_entropie = (nb_inf / float(nb_exemples)) * val_entropie_inf \
+            + (nb_sup / float(nb_exemples)) * val_entropie_sup
 
         # Ajout de la valeur trouvée pour retourner l'ensemble des entropies trouvées:
         liste_coupures.append(v)
@@ -1001,8 +1033,6 @@ def tirage(VX, m, avecRemise=False):
     #     return [random.choice(VX) for _ in range(m)]
     # return random.sample(VX, m)
 
-# ############################################## A COMPLETER
-
 
 def echantillonLS(LS, m, avecRemise):
     """ LS: LabeledSet (couple de np.arrays)
@@ -1012,3 +1042,127 @@ def echantillonLS(LS, m, avecRemise):
     (desc, labels) = LS
     indices = tirage(range(len(desc)), m, avecRemise)
     return desc[indices], labels[indices]
+
+
+class NaiveBayes(Classifier):
+    """Classifier Naive Bayes (optimisé pour les matrices creuses). Lissage de Laplace est utilisé avec alpha = 1, K = 2 
+    pour éviter le problème de fréquence nulle.
+    Source : https://towardsdatascience.com/laplace-smoothing-in-naive-bayes-algorithm-9c237a8bdece/.
+
+    Ainsi, lors des testes on a vu que pour certains exemples la probabilité pour chaque target est 0. 
+    Cependant, aucune probabilité P(mot | target) était à 0 mais elles était très petites. 
+    Le problème venait de underflow car on multipliait les probabilités trop petites et donc le produit final était 0.
+
+    Selon le site (https://www.geeksforgeeks.org/addressing-numerical-underflow-in-naive-bayes-classification/#understanding-numerical-underflow-issues)
+    ce issue peut être résolu en appliquant log sur le produit (log est la fonction croissante donc maximier la proba = 
+    maximiser sa valeur en log). 
+    Log permet de tranformer le produit en somme qui est plus stable par rapport à la multiplication.
+    On utilise les propriétés de log suivantes :
+        - log(x * y) = log(x) + log(y)
+        - log(x^y) = y * log(x)
+    """
+
+    def __init__(self, input_dimension, corpus, classes):
+        """Initialise les paramètres de Naive Bayes.
+        Les dictionnaires supplémentaires du classifieur:
+            - probas_words : Dictionnaire qui stocke les probas P(mot | target). Le dictionnaire est sous la forme
+                {target_value : [P(mot 0 | target), ..., P(mot N | target)]}.
+
+            - probas_class : Dictionnaire qui stocke les probas P(target).
+
+        Parameters
+        ----------
+            input_dimension : dimension des données (= nombre de mots dans le corpus)
+            corpus : le corpus
+            classes : les classes (uniques) qui seront présents dans le dataset.
+        """
+
+        super().__init__(input_dimension)
+        self.probas_words = dict()
+        self.probas_class = dict()
+        self.classes = deepcopy(classes)
+        self.corpus = deepcopy(corpus)
+
+    def train(self, desc_set: csr_array, label_set: np.ndarray):
+        """Calcule les probas P(mot | target) pour chaque target.
+        Remplie le dictionnaire self.probas_words et self.probas_class.
+
+        Parameters
+        ----------
+            desc_set : Les exemples de dataset déjà vectorisées comme Bag-of-Words !non! binaire.
+            label_set : les labels (targets) associés aux exemples de 'desc_set'.
+        """
+
+        for cl in self.classes:
+            mask = (label_set == cl)
+            examples = desc_set[mask, :]
+
+            # P(mot | target) avec lissage de Laplace (alpha = 1, K = 2)
+            self.probas_words[cl] = (examples.sum(axis=0).A1 + 1) / (examples.sum() + 2)
+
+            # P(target)
+            self.probas_class[cl] = examples.shape[0] / desc_set.shape[0]
+
+    def _get_mask(self, example: csr_array) -> csr_array:
+        """Calcule le vecteur similaire à bag-of-words pour un example.
+
+        Parameters
+        ----------
+            example : Example de dataset déjà vectorisé comme Bag-of-Words !non! binaire
+
+        Returns
+        -------
+            Masque dont chaque colonne est associé à un mot (même ordre des mots que dans 'example').
+            Le masque aura 0 si le mot n'est pas présent dans 'example' et 1 si le mot est présent.
+            Ce masque est utilisé pour faire la puissance lors de prédiction selon Naive Bayes (Xmot dans le cours).
+        """
+
+        mask = example.copy()
+        mask.data = (mask.data > 0).astype(int)
+        return mask
+
+    def score(self, example: csr_array) -> dict[int, float]:
+        """Calcule P(target | example) pour chaque target présent dans self.classes
+
+        Parameters
+        ----------
+            example : Example de dataset déjà vectorisé comme Bag-of-Words !non! binaire
+
+        Returns
+        -------
+            Dictionnaire dont chaque clé est une valeur de target et la valeur associée est la probabilité 
+            P(target | example).
+        """
+
+        mask = self._get_mask(example).toarray().flatten()
+        scores = dict()
+
+        for cl in self.classes:
+            # Problème --> pas stable
+            # pow1 = np.power(self.probas_words[cl], mask)
+            # pow0 = np.power(1-self.probas_words[cl], 1-mask)
+            # scores[cl] = np.prod(pow1) * np.prod(pow0) * self.probas_class[cl]
+
+            # Version log
+            pow1 = np.log(self.probas_words[cl]) * mask         # car log(x^y) = y * log(x)
+            pow0 = np.log(1-self.probas_words[cl]) * (1-mask)
+
+            scores[cl] = np.sum(pow1) + np.sum(pow0) + np.log(self.probas_class[cl])  # car log(x * y) = log(x) + log(y)
+
+        return scores
+
+    def predict(self, example: csr_array):
+        """Prédit le classe d'example selon les probabilités P(classe | example). 
+        Le classe prédit est celui qui a la probabilité la plus élevée.
+
+        Parameters
+        ----------
+            example : Example de dataset déjà vectorisé comme Bag-of-Words !non! binaire
+
+        Returns
+        -------
+            Classe le plus probable d'example donné.
+        """
+
+        scores = self.score(example)
+        return max(scores, key=scores.get)
