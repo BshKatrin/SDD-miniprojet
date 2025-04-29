@@ -182,7 +182,7 @@ class ClassifierKNN_MC(Classifier):
 
         # Optimisation pour sparse le cas où
 
-        distance = pairwise_distances(self.desc_set, x.reshape(1, -1), metric=self.dist_type).flatten()
+        distance = pairwise_distances(x.reshape(1, -1), self.desc_set, metric=self.dist_type).flatten()
         # k plus proches voisins
         k_voisins_ind = np.argpartition(distance, kth=self.k)[:self.k]
         k_labels = self.label_set[k_voisins_ind]
@@ -262,7 +262,7 @@ class ClassifierPerceptron(Classifier):
     """ Perceptron de Rosenblatt
     """
 
-    def __init__(self, input_dimension, learning_rate=0.01, init=True, sparse=False):
+    def __init__(self, input_dimension, learning_rate=0.01, init=True):
         """ Constructeur de Classifier
             Argument:
                 - input_dimension (int) : dimension de la description des exemples (>0)
@@ -273,13 +273,7 @@ class ClassifierPerceptron(Classifier):
         """
         Classifier.__init__(self, input_dimension)
         self.learning_rate = learning_rate
-        self.sparse = sparse
-
-        if not sparse:
-            self.w = np.zeros(self.dimension) if init else (2 * np.random.uniform(0, 1, self.dimension) - 1) * 0.001
-        else:
-            self.w = np.zeros((1, self.dimension)) if init else (
-                2 * np.random.uniform(0, 1, (1, self.dimension)) - 1) * 0.001
+        self.w = np.zeros(self.dimension) if init else (2 * np.random.uniform(0, 1, self.dimension) - 1) * 0.001
 
         # self.allw = [deepcopy(self.w)]  # stockage des premiers poids
 
@@ -325,9 +319,7 @@ class ClassifierPerceptron(Classifier):
         """ rend le score de prédiction sur x (valeur réelle)
             x: une description
         """
-        if not self.sparse:
-            return np.dot(x, self.w)
-        return x.dot(self.w.T)[0, 0]
+        return x.dot(self.w.T)
 
     def predict(self, x):
         """ rend la prediction sur x (soit -1 ou soit +1)
@@ -1098,7 +1090,7 @@ class NaiveBayes(Classifier):
             examples = desc_set[mask, :]
 
             # P(mot | target) avec lissage de Laplace (alpha = 1, K = 2)
-            self.probas_words[cl] = (examples.sum(axis=0).A1 + 1) / (examples.sum() + 2)
+            self.probas_words[cl] = (examples.sum(axis=0) + 1) / (examples.sum() + 2)
 
             # P(target)
             self.probas_class[cl] = examples.shape[0] / desc_set.shape[0]
