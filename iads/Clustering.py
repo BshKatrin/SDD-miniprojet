@@ -18,7 +18,156 @@ import pandas as pd
 from typing import Union, Callable, Dict
 import matplotlib.pyplot as plt
 # ------------------------
+# added kmeans
 
+def inertie_cluster(Ens:Union[np.ndarray, pd.DataFrame]) -> float:
+    """Calcule l'inertie inter-cluster (la somme (au carré) des distances euclidiennes des points au centroide).
+    Hypothèse: len(Ens)> >= 2
+
+    Parameters
+    ----------  
+        Ens : ensemble des données qui appartiennent au même cluster
+
+    Returns
+    -------
+        Inertie inter-cluster.
+    """
+    centroid = centroide(Ens)
+    return np.sum(np.power(dist_euclidienne(Ens, centroid), 2))
+
+def inertie_globale(Base:Union[np.ndarray, pd.DataFrame], U:Dict[int, list[int]]) -> float:
+    """
+    Calcule l'inertie globale (somme des inerties intra-clusters).
+
+    Parameters
+    ----------
+        Base : Base de données d'apprentissage
+        U    : Dictionnaire d'affectatation (key : cluster, value : liste des points dans ce cluster). Doit être compatible avec 'Base'
+
+    Returns
+    -------
+        Inertie globale
+    """
+    if isinstance(Base, pd.DataFrame):
+        Base = Base.to_numpy()
+
+    inertie = 0 # pour faire la somme
+    for elems in U.values():
+        inertie += inertie_cluster(Base[elems])
+    return inertie
+    
+
+def init_kmeans(K:int,Ens:Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+    """Choisit K points de manière aléatoire. Ces points seront les centroides des clusters (initialisation pour 
+        l'algorithme KMeans).
+    
+    Parameters
+    ----------
+        K   : nombre de cluster > 1 et <= n = le nombre d'exemples de 'Ens'
+        Ens : Base de données d'apprentissage (contient n exemples).
+    """
+
+    if isinstance(Ens, pd.DataFrame):
+        Ens = Ens.to_numpy()
+    return Ens[np.random.choice(Ens.shape[0], size=K, replace=False)]  
+
+def plus_proche(Exe:Union[np.ndarray, pd.Series],Centres:np.ndarray) -> int:
+    """Calcule l'indice de plus proche cluster (plus proche centroide)
+    
+    Parameters
+    ----------
+        Exe     : Exemble de base d'apprentissage.
+        Centres : Coordonnées des centroides de chaque cluster
+
+    Returns
+    -------
+        Indice (dans l'array 'Centres') de plus proche centroide
+    """
+
+    if isinstance(Exe, pd.Series):
+        Exe = Exe.to_numpy()
+    return np.argmin(np.linalg.norm(Centres - Exe, axis=1))
+
+def affecte_cluster(Base:Union[pd.DataFrame, np.ndarray],Centres:np.ndarray) -> Dict[int, list[int]]:
+    """Calcule l'affectation des points dans la dataset 'Base' dans les clusters (selon le plus proche centroide).
+    
+    Parameters
+    ----------
+        Base    : Base de données d'apprentissage
+        Centres : Coordonnées des centroides de chaque cluster
+
+    Returns
+    -------
+        Dictionnaire d'affectatation (key : cluster, value : liste des points dans ce cluster). Doit être compatible avec 'Base'
+    """
+
+    if isinstance(Base, pd.DataFrame):
+        Base = Base.to_numpy()
+
+    MA = {c : [] for c in range(len(Centres))}
+
+    for i, ex in enumerate(Base):
+        MA[plus_proche(ex, Centres)].append(i)
+    return MA
+
+def nouveaux_centroides(Base:Union[np.ndarray, pd.DataFrame],U:Dict[int, list[int]]) -> np.ndarray:
+    """
+    Recalcule les centroids selon l'affectation des points dans les clusters.
+
+    Parameters
+    ----------
+        Base : Base de données d'apprentissage
+        U    : Dictionnaire d'affectatation (key : cluster, value : liste des points dans ce cluster). Doit être compatible avec 'Base'
+
+    Returns
+    -------
+        Coordonnées des nouveaux centroides.
+    """
+
+    if isinstance(Base, pd.DataFrame):
+        Base = Base.to_numpy()
+    centroids = []
+    for elems in U.values():
+        centroids.append(centroide(Base[elems]))
+    return np.array(centroids)
+
+def kmoyennes(K:int, Base:Union[np.ndarray, pd.DataFrame], epsilon:float, iter_max:int, verbose:bool=True) -> tuple[np.ndarray, dict[int, list[int]]]:
+    """ int * Array * float * int -> tuple(Array, dict[int,list[int]])
+    Algorithme KMeans sur la dataset 'Base'.
+
+    Parameters
+    ----------
+        K        : nombre de clusters (> 1)
+        Base     : Base de données d'apprentissage
+        epsilon  : critère de convergence (différence entre l'inertie globale)
+        iter_max : nombre d'itération maximum
+        verbose  : True s'il faut afficher les étapes d'algorithme. Sinon, False.
+    """
+    
+   
+    centroids = init_kmeans(K, Base)     # initialisation de K clusters
+    U = affecte_cluster(Base, centroids) # matrice d'affectation
+    prev_iner_gl, curr_iner_gl = 0, inertie_globale(Base, U)
+    
+    if (verbose):
+        print(f"Initialisaton, Inertie :  {curr_iner_gl:4f}")
+    for i in range(iter_max):        
+        centroids = nouveaux_centroides(Base, U)
+        U = affecte_cluster(Base, centroids)
+        prev_iner_gl = curr_iner_gl
+        curr_iner_gl = inertie_globale(Base, U)
+        
+        if (verbose):
+            print(f"Itération {i+1} Inertie {curr_iner_gl:4f} Différence {np.abs(prev_iner_gl - curr_iner_gl):.4f}")
+
+        # convergence
+        if  np.isclose(prev_iner_gl, curr_iner_gl, atol=epsilon):
+            break
+    
+    return centroids, U
+
+
+# ------------------------
 
 def normalisation(data: pd.DataFrame) -> pd.DataFrame:
     """Normalise les données dans le dataframe 'data'.
@@ -35,7 +184,7 @@ def normalisation(data: pd.DataFrame) -> pd.DataFrame:
     df = data.copy()
     for column in df.columns:
         min_max = df[column].agg(["min", "max"])
-        df[column] = (df[column] - min_max["min"]) / (min_max["max"] - min_max["min"])
+        df[column] = (df[column] - min_max["min"]) / (min_max["max"] - min_max["min"]) if min_max["max"] != min_max["min"] else 0
     return df
 
 
