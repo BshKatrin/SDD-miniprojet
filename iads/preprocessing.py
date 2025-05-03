@@ -94,9 +94,37 @@ def lemmatize_filter(news: pd.DataFrame, min_len: int = 3, min_count: int = 10) 
 
     messages = words.groupby("Message index")["lemma"].apply(" ".join).reset_index()
 
-    return news[["Message index", "target"]].merge(
-        messages, on="Message index").rename(columns={"lemma": "messages"})
+    news = news.drop(columns=["messages"])
+
+    return news.merge(messages, on="Message index").rename(columns={"lemma": "messages"})
 
 
 def get_corpus(news: pd.DataFrame) -> list[str]:
     return news["messages"].str.split().explode().unique().tolist()
+
+
+def add_real_labels(news: pd.DataFrame) -> pd.DataFrame:
+    """Ajoute la colonne dans la dataframe 'news' qui correspond aux vrais labels des messages (en fonction de target)."""
+    categories = dict({
+        0: "alt.atheism",
+        1: "comp.graphics",
+        2: "comp.sys.ibm.pc.hardware",
+        3: "comp.sys.mac.hardware",
+        4: "comp.windows.x",
+        5: "misc.forsale",
+        6: "rec.autos",
+        7: "rec.motorcycles",
+        8: "rec.sport.baseball",
+        9: "rec.sport.hockey",
+        10: "sci.crypt",
+        11: "sci.electronics",
+        12: "sci.med",
+        13: "sci.space",
+        14: "soc.religion.christian",
+        15: "talk.politics.guns",
+        16: "talk.politics.mideast",
+        17: "talk.politics.misc",
+        18: "talk.religion.misc",
+        19: "comp.os.ms-windows.misc"
+    })
+    return news.assign(label=news["target"].map(categories))

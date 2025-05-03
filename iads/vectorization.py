@@ -67,4 +67,4 @@ def get_tfidf_vect(news: pd.DataFrame, corpus: list[str]) -> csr_array:
 
     # Multiplication par idf
     idf_words = np.log((1 + news.shape[0]) / (1 + idf_words))
-    return csr_array((data, (rows, cols)), shape=(news.shape[0], len(corpus)), dtype=float).multiply(idf_words)
+    return csr_array((data, (rows, cols)), shape=(news.shape[0], len(corpus)), dtype=float).multiply(idf_words).tocsr()

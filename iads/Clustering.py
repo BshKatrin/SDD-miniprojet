@@ -20,7 +20,8 @@ import matplotlib.pyplot as plt
 # ------------------------
 # added kmeans
 
-def inertie_cluster(Ens:Union[np.ndarray, pd.DataFrame]) -> float:
+
+def inertie_cluster(Ens: Union[np.ndarray, pd.DataFrame]) -> float:
     """Calcule l'inertie inter-cluster (la somme (au carré) des distances euclidiennes des points au centroide).
     Hypothèse: len(Ens)> >= 2
 
@@ -35,7 +36,8 @@ def inertie_cluster(Ens:Union[np.ndarray, pd.DataFrame]) -> float:
     centroid = centroide(Ens)
     return np.sum(np.power(dist_euclidienne(Ens, centroid), 2))
 
-def inertie_globale(Base:Union[np.ndarray, pd.DataFrame], U:Dict[int, list[int]]) -> float:
+
+def inertie_globale(Base: Union[np.ndarray, pd.DataFrame], U: Dict[int, list[int]]) -> float:
     """
     Calcule l'inertie globale (somme des inerties intra-clusters).
 
@@ -51,16 +53,16 @@ def inertie_globale(Base:Union[np.ndarray, pd.DataFrame], U:Dict[int, list[int]]
     if isinstance(Base, pd.DataFrame):
         Base = Base.to_numpy()
 
-    inertie = 0 # pour faire la somme
+    inertie = 0  # pour faire la somme
     for elems in U.values():
         inertie += inertie_cluster(Base[elems])
     return inertie
-    
 
-def init_kmeans(K:int,Ens:Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+
+def init_kmeans(K: int, Ens: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
     """Choisit K points de manière aléatoire. Ces points seront les centroides des clusters (initialisation pour 
         l'algorithme KMeans).
-    
+
     Parameters
     ----------
         K   : nombre de cluster > 1 et <= n = le nombre d'exemples de 'Ens'
@@ -69,11 +71,12 @@ def init_kmeans(K:int,Ens:Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
 
     if isinstance(Ens, pd.DataFrame):
         Ens = Ens.to_numpy()
-    return Ens[np.random.choice(Ens.shape[0], size=K, replace=False)]  
+    return Ens[np.random.choice(Ens.shape[0], size=K, replace=False)]
 
-def plus_proche(Exe:Union[np.ndarray, pd.Series],Centres:np.ndarray) -> int:
+
+def plus_proche(Exe: Union[np.ndarray, pd.Series], Centres: np.ndarray) -> int:
     """Calcule l'indice de plus proche cluster (plus proche centroide)
-    
+
     Parameters
     ----------
         Exe     : Exemble de base d'apprentissage.
@@ -88,9 +91,10 @@ def plus_proche(Exe:Union[np.ndarray, pd.Series],Centres:np.ndarray) -> int:
         Exe = Exe.to_numpy()
     return np.argmin(np.linalg.norm(Centres - Exe, axis=1))
 
-def affecte_cluster(Base:Union[pd.DataFrame, np.ndarray],Centres:np.ndarray) -> Dict[int, list[int]]:
+
+def affecte_cluster(Base: Union[pd.DataFrame, np.ndarray], Centres: np.ndarray) -> Dict[int, list[int]]:
     """Calcule l'affectation des points dans la dataset 'Base' dans les clusters (selon le plus proche centroide).
-    
+
     Parameters
     ----------
         Base    : Base de données d'apprentissage
@@ -104,13 +108,14 @@ def affecte_cluster(Base:Union[pd.DataFrame, np.ndarray],Centres:np.ndarray) -> 
     if isinstance(Base, pd.DataFrame):
         Base = Base.to_numpy()
 
-    MA = {c : [] for c in range(len(Centres))}
+    MA = {c: [] for c in range(len(Centres))}
 
     for i, ex in enumerate(Base):
         MA[plus_proche(ex, Centres)].append(i)
     return MA
 
-def nouveaux_centroides(Base:Union[np.ndarray, pd.DataFrame],U:Dict[int, list[int]]) -> np.ndarray:
+
+def nouveaux_centroides(Base: Union[np.ndarray, pd.DataFrame], U: Dict[int, list[int]]) -> np.ndarray:
     """
     Recalcule les centroids selon l'affectation des points dans les clusters.
 
@@ -131,7 +136,8 @@ def nouveaux_centroides(Base:Union[np.ndarray, pd.DataFrame],U:Dict[int, list[in
         centroids.append(centroide(Base[elems]))
     return np.array(centroids)
 
-def kmoyennes(K:int, Base:Union[np.ndarray, pd.DataFrame], epsilon:float, iter_max:int, verbose:bool=True) -> tuple[np.ndarray, dict[int, list[int]]]:
+
+def kmoyennes(K: int, Base: Union[np.ndarray, pd.DataFrame], epsilon: float, iter_max: int, verbose: bool = True) -> tuple[np.ndarray, dict[int, list[int]]]:
     """ int * Array * float * int -> tuple(Array, dict[int,list[int]])
     Algorithme KMeans sur la dataset 'Base'.
 
@@ -143,27 +149,26 @@ def kmoyennes(K:int, Base:Union[np.ndarray, pd.DataFrame], epsilon:float, iter_m
         iter_max : nombre d'itération maximum
         verbose  : True s'il faut afficher les étapes d'algorithme. Sinon, False.
     """
-    
-   
+
     centroids = init_kmeans(K, Base)     # initialisation de K clusters
-    U = affecte_cluster(Base, centroids) # matrice d'affectation
+    U = affecte_cluster(Base, centroids)  # matrice d'affectation
     prev_iner_gl, curr_iner_gl = 0, inertie_globale(Base, U)
-    
+
     if (verbose):
         print(f"Initialisaton, Inertie :  {curr_iner_gl:4f}")
-    for i in range(iter_max):        
+    for i in range(iter_max):
         centroids = nouveaux_centroides(Base, U)
         U = affecte_cluster(Base, centroids)
         prev_iner_gl = curr_iner_gl
         curr_iner_gl = inertie_globale(Base, U)
-        
+
         if (verbose):
             print(f"Itération {i+1} Inertie {curr_iner_gl:4f} Différence {np.abs(prev_iner_gl - curr_iner_gl):.4f}")
 
         # convergence
-        if  np.isclose(prev_iner_gl, curr_iner_gl, atol=epsilon):
+        if np.isclose(prev_iner_gl, curr_iner_gl, atol=epsilon):
             break
-    
+
     return centroids, U
 
 
@@ -184,7 +189,8 @@ def normalisation(data: pd.DataFrame) -> pd.DataFrame:
     df = data.copy()
     for column in df.columns:
         min_max = df[column].agg(["min", "max"])
-        df[column] = (df[column] - min_max["min"]) / (min_max["max"] - min_max["min"]) if min_max["max"] != min_max["min"] else 0
+        df[column] = (df[column] - min_max["min"]) / (min_max["max"] -
+                                                      min_max["min"]) if min_max["max"] != min_max["min"] else 0
     return df
 
 
@@ -203,6 +209,10 @@ def dist_euclidienne(X: Union[np.ndarray, pd.DataFrame], Y: Union[np.ndarray, pd
     """
 
     return np.linalg.norm(X - Y)
+
+
+def dist_cosine(X: Union[np.ndarray, pd.DataFrame], Y: Union[np.ndarray, pd.DataFrame]) -> Union[np.ndarray, pd.DataFrame]:
+    return 1 - np.dot(X, Y) / (np.linalg.norm(X) * np.linalg.norm(Y))
 
 
 def dist_manhattan(X, Y):

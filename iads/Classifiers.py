@@ -15,7 +15,6 @@ Amélie CHU
 # Optimisation pour sparse
 from scipy.sparse import csr_array
 from sklearn.metrics import pairwise_distances
-from scipy.sparse.linalg import norm as sparse_norm
 
 import graphviz as gv
 from copy import deepcopy
@@ -1039,7 +1038,8 @@ def echantillonLS(LS, m, avecRemise):
 class NaiveBayes(Classifier):
     """Classifier Naive Bayes (optimisé pour les matrices creuses). Lissage de Laplace est utilisé avec alpha = 1, K = 2 
     pour éviter le problème de fréquence nulle.
-    Source : https://towardsdatascience.com/laplace-smoothing-in-naive-bayes-algorithm-9c237a8bdece/.
+    Source1 : On a vu ça en UE 'Statistiques et Informatique' en S5.
+    Source2: https://towardsdatascience.com/laplace-smoothing-in-naive-bayes-algorithm-9c237a8bdece/.
 
     Ainsi, lors des testes on a vu que pour certains exemples la probabilité pour chaque target est 0. 
     Cependant, aucune probabilité P(mot | target) était à 0 mais elles était très petites. 
