@@ -68,3 +68,11 @@ def get_tfidf_vect(news: pd.DataFrame, corpus: list[str]) -> csr_array:
     # Multiplication par idf
     idf_words = np.log((1 + news.shape[0]) / (1 + idf_words))
     return csr_array((data, (rows, cols)), shape=(news.shape[0], len(corpus)), dtype=float).multiply(idf_words).tocsr()
+
+
+def normalize(M: csr_array) -> csr_array:
+    """Normalize chaque exemple (row) de M selon la norme L2 (norme euclidienne), i.e.
+    chaque example sera représenté par le vecteur de norme 1."""
+
+    l2_norms = np.sqrt(M.multiply(M).sum(axis=1))
+    return M.multiply(1 / l2_norms.reshape(-1, 1)).tocsr()

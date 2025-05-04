@@ -1,3 +1,5 @@
+from matplotlib import cm
+from matplotlib.colors import ListedColormap
 from scipy.sparse import csr_array
 import numpy as np
 import pandas as pd
@@ -6,8 +8,6 @@ import seaborn as sns
 from wordcloud import WordCloud
 from sklearn.decomposition import PCA
 import iads.Clustering as clust
-
-
 import itertools
 from typing import Callable, Tuple
 from scipy.spatial.distance import cdist
@@ -75,8 +75,11 @@ def plot_clusters_wordcloud(news, clusters_labels, stopwords, n_clusters=18):
     for i in range(n_clusters):
         ax = axes[i]
 
+        cmap = ListedColormap(cm.get_cmap('tab20').colors[:6])
+
         text = " ".join(news[clusters_labels == i]['messages'].values.flatten())
-        wordcloud = WordCloud(background_color='white', stopwords=stopwords, max_words=100).generate(text)
+        wordcloud = WordCloud(background_color='white', stopwords=stopwords,
+                              max_words=100, colormap=cmap).generate(text)
 
         ax.imshow(wordcloud, interpolation='bilinear')
         ax.axis('off')
