@@ -12,7 +12,7 @@ def get_bow_vect(news: pd.DataFrame, corpus: list[str], binary: bool = False) ->
     (0.8 sec pour 10% de dataset) que la construction de csr_array directement (0.0sec pour 10% de dataset) à partir des listes 
     data et indices de rows (indices), cols (indptr).
 
-    Source : scipy docs sur csr_array
+    Source : scipy docs sur csr_array + https://stackoverflow.com/questions/43828704/how-to-cluster-sparse-data-using-sklearn-kmeans
     """
 
     corpus_mapping = {word: i for i, word in enumerate(corpus)}
