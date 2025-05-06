@@ -17,14 +17,15 @@ def clean_news(news: pd.DataFrame, stopwords: list[str], delete_stopwords: bool 
     Remarque : le caractère de punctuation l'apostrophe (') est également supprimé car pas de mots utiles dans 
     Parameters
     ----------
-        news : Database qui contient la base de données sur 'news'. Colonne 'messages' doit être présent.
-        stopwords : Liste des stopwords
-        delete_stopwords : Si True, alors les stopwords seront enlevés. Si False, ils seront préservés.
+        news             : Dataframe qui contient dataset '20newsgroups'
+        stopwords        : Liste des stopwords
+        delete_stopwords : Si True, alors les stopwords seront enlevés. Si False, ils seront préservés
+        delete_digits    : Si True, alors supprimer les mots qui sont formés uniquement de chiffres. Si False, préserver tels mots
 
     Returns
     -------
-        Dataframe 'news' nettoyé selon les 4 étapes ci-dessus
-            (et avec la colonne 'Message index' ajouté --> TO DO : see if useful later. If not, delete).
+        Dataframe 'news' nettoyé selon les 4 étapes ci-dessus (et avec la colonne 'Message index' ajouté,
+            c'est utile pour lemmatisation après)
     """
 
     def del_stopwords(tokenized_msg: list[str]) -> list[str]:
@@ -67,8 +68,8 @@ def lemmatize_filter(news: pd.DataFrame, min_len: int = 3, min_count: int = 10) 
 
     Parameters
     ----------
-        news : Dataframe qui représente dataset 20newsgroups
-        min_len : La longueur de mot minimale. Les mots de longueur inférieure serong supprimés.
+        news      : Dataframe qui contient le dataset 20newsgroups
+        min_len   : La longueur de mot minimale. Les mots de longueur inférieure serong supprimés.
         min_count : Le nombre d'appararition minimale d'un mot. 
             Les mots qui apparaissent moins que 'min_count' seront supprimés.
 
@@ -100,11 +101,32 @@ def lemmatize_filter(news: pd.DataFrame, min_len: int = 3, min_count: int = 10) 
 
 
 def get_corpus(news: pd.DataFrame) -> list[str]:
+    """Construit le corpus des mots présents dans le dataset 'news'
+
+    Parameters
+    ----------
+        news : Dataframe qui contient le dataset 20newsgroups !néttoyé et lemmatisé!
+
+    Returns
+    -------
+        Corpus construit
+    """
+
     return news["messages"].str.split().explode().unique().tolist()
 
 
 def add_real_labels(news: pd.DataFrame) -> pd.DataFrame:
-    """Ajoute la colonne dans la dataframe 'news' qui correspond aux vrais labels des messages (en fonction de target)."""
+    """Ajoute la colonne dans le dataframe 'news' qui correspond aux vrais labels des messages (en fonction de target).
+
+    Parameters
+    ----------
+        news : Dataframe qui contient le dataset 20newsgroups
+
+    Returns
+    -------
+        Dataframe 'news' avec la colonne ajoutée (rien d'autre est modifié)
+    """
+
     categories = dict({
         0: "alt.atheism",
         1: "comp.graphics",

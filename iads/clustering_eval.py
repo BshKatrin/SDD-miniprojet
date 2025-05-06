@@ -1,20 +1,41 @@
-from matplotlib import cm
-from matplotlib.colors import ListedColormap
-from scipy.sparse import csr_array
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from wordcloud import WordCloud
-from sklearn.decomposition import PCA
-import iads.Clustering as clust
 import itertools
 from typing import Callable, Tuple
+
+import numpy as np
+import pandas as pd
+
+from matplotlib import cm
+from matplotlib.colors import ListedColormap
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from scipy.sparse import csr_array
 from scipy.spatial.distance import cdist
+from sklearn.decomposition import PCA
+
+from wordcloud import WordCloud
+import iads.Clustering as clust
 
 
-def distribution_target(true_targets: np.ndarray, assigned_clusters: np.ndarray, true_labels: np.ndarray):
-    """Affiche la distribution des targets dans les clusters obtenus"""
+def distribution_target(true_targets: np.ndarray, assigned_clusters: np.ndarray, true_labels: np.ndarray) -> Figure:
+    """Plotte la distribution (heatmap) des targets dans les clusters obtenus :
+        sur axe Y         : targets
+        sur axe X en haut : le nombre d'exemples dans chaque cluster
+        sur axe X en bas  : le numéro du cluster
+
+    Parameters
+    ----------
+        Les 3 paramètres passés sont associés aux exemples dans le même ordre -> tous les arrays sont de même taille.
+        true_targets      : Les vrais targets des exemples (les targets varient de 0 à M-1 avec M : le nombre de targets)
+        assigned_clusters : Les numéros des clusters assignés à chaque exemple 
+        true_labels       : Les labels à mettre sur l'axe de Y. Dans le cadre de dataset 20newsgroups ce sont des labels
+            de type alt.altheism, comp.graphics etc.
+
+    Returns
+    -------
+        Figure de matplotlib avec heatmap plotté (utile pour la sauvegarde).
+    """
 
     actual_pd = pd.Categorical(true_targets, categories=np.unique(true_targets))
 
@@ -47,8 +68,19 @@ def distribution_target(true_targets: np.ndarray, assigned_clusters: np.ndarray,
     return fig
 
 
-def predict_label(affectation: dict) -> list:
-    """Renvoie les labels prédit par l'affectation k-means pour chaque exemple"""
+def predict_label(affectation: dict[int, list[int]]) -> list[int]:
+    """"Convertit le dictionnaire des affectations des exemples aux clusters en une liste
+    telle que l'élément d'indice i correspond au cluster auquel l'exemple i a été affecté.
+
+    Parameters
+    ----------
+        affectation : Dictionnaire d'affectation dont chaque clé indique le numéro du cluster 
+            et la valeur associée est une liste des indices des éléments
+
+    Returns
+    -------
+        Affectation (sous forme de la liste) de chaque exemple au cluster
+    """
 
     aff = [(i, cluster) for cluster, ids in affectation.items() for i in ids]
     indices, clusters = zip(*aff)
@@ -60,7 +92,20 @@ def predict_label(affectation: dict) -> list:
 
 
 def get_n_components_PCA(vectors: csr_array, explained_var: float) -> int:
-    """Get a number of parameters for PCA to explain 'explained_var'"""
+    """Trouve le nombre de dimensions suffisant pour expliquer une proportion donnée de la variance
+        lors de la réduction de dimension avec PCA.
+
+    Parameters
+    ----------
+        vectors : les vecteurs associés aux exemples (lignes = exemples, colonnes = features).
+        explained_var : la proportion de la variance qu'il faut expliquer
+
+    Returns
+    ------- 
+        Le nombre de dimension suffisant pour expliquer 'explained_var'  de la variance 
+        [= le paramtère n_components de sklearn.decomposition.PCA].
+    """
+
     model = PCA()
     model.fit(vectors)
     cumsum_var = model.explained_variance_ratio_.cumsum()
@@ -68,7 +113,22 @@ def get_n_components_PCA(vectors: csr_array, explained_var: float) -> int:
     return index + 1
 
 
-def plot_clusters_wordcloud(news, clusters_labels, stopwords, n_clusters=18):
+def plot_clusters_wordcloud(news: pd.DataFrame, clusters_labels: list[int], stopwords: list[str], n_clusters: int = 18) -> Figure:
+    """Plotte le nuage de mots pour chaque cluster 
+
+    Parameters
+    ----------
+        news            : Dataframe associé au dataset 20newsgroups qui contient les vrais (non vectorisés) messages après le nettoyage.
+        clusters_labels : Array qui représente une affectation des exemples aux clusters. La taille de la liste doit être la même
+            que le nombre des lignes dans dataframe 'news' (+ même ordre)
+        stopwords       : Liste de stopwords
+        n_clusters      : Le nombre de clusters au total.
+
+    Returns
+    -------
+        Figure de matplotlib avec heatmap plotté (utile pour la sauvegarde)
+    """
+
     fig, axes = plt.subplots(3, 6, figsize=(15, 6))
     axes = axes.flatten()
 
@@ -221,6 +281,20 @@ def scores_plot(title, k_values, k_global_inertia, k_co_dist, k_separability, k_
 
 
 def get_target_vectors(M: csr_array, news: pd.DataFrame) -> np.ndarray:
+    """Calcule la vectorisation de chaque targets en fonction de la vectorisation des exemples associés.
+    La vectorisaton de chaque target est calculée en prenant la moyenne des vecteurs des exemples qui ont ce target.
+
+    Parameters
+    ----------
+        M    : La matrice de vectorisation des exemples donné dans le dataframe 'news' (lignes = exemples, colonnes = features]
+        news : Dataframe associé au dataset 20newsgroups
+
+    Returns
+    -------
+        Matrice de vectorisation de chaque target (lignes = targets). Les targets sont placés dans l'ordre croissant, i.e. 
+            la ligne 0 est la vectorisation de target qui a la plus petite valeur.
+    """
+
     targets_vectors = []
     values = news["target"].values
     for target in np.sort(news["target"].unique()):

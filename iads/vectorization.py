@@ -5,8 +5,20 @@ import numpy as np
 
 
 def get_bow_vect(news: pd.DataFrame, corpus: list[str], binary: bool = False) -> csr_array:
-    """
-    Hypothèse : 
+    """Vectorise tous les messages de dataframe 'news' (dataset 20newsgroups) selon
+        Bag-of-words (binarisé ou non).
+
+    Parameters
+    ----------
+        news    : Dataframe qui contient le dataset 20newsgroups.
+        corpus  : Liste des mots dans le corpus construit.
+        binary  : Si True, alors la vectorisation Bag-of-words est binarisé (1 si le mot est présent, 0 sinon).
+            Si False, alors Bag-of-words est non binaire (comptre le nombre d'occurences de mots).
+
+    Returns
+    -------
+        Matrice de vectorisation de tous les messages présents dans le dataset. 
+        Les lignes correspondent aux messages, les colonnes aux mots.
 
     Remarque : contruction avec dok_array et ensuite la conversion en csr_array prenait plus de temps
     (0.8 sec pour 10% de dataset) que la construction de csr_array directement (0.0sec pour 10% de dataset) à partir des listes 
@@ -49,6 +61,21 @@ def get_bow_vect(news: pd.DataFrame, corpus: list[str], binary: bool = False) ->
 
 
 def get_tfidf_vect(news: pd.DataFrame, corpus: list[str]) -> csr_array:
+    """Vectorise tous les messages de dataframe 'news' (dataset 20newsgroups) selon Tf-Idf:
+        - Tf : nombre d'occurences
+        - Idf est avec une lissage additive.
+
+    Parameters
+    ----------
+        news    : Dataframe qui contient le dataset 20newsgroups.
+        corpus  : Liste des mots dans le corpus construit.
+
+    Returns
+    -------
+        Matrice de vectorisation de tous les messages présents dans le dataset. 
+        Les lignes correspondent aux messages, les colonnes aux mots (dans l'ordre dans le corpus).
+    """
+
     data, rows, cols = [], [], []  # pour construction de csr_array
     corpus_mapping = {word: i for i, word in enumerate(corpus)}
     idf_words = np.zeros(len(corpus))
@@ -72,7 +99,17 @@ def get_tfidf_vect(news: pd.DataFrame, corpus: list[str]) -> csr_array:
 
 def normalize(M: csr_array) -> csr_array:
     """Normalize chaque exemple (row) de M selon la norme L2 (norme euclidienne), i.e.
-    chaque example sera représenté par le vecteur de norme 1."""
+    chaque example sera représenté par le vecteur de norme 1.
+
+    Parameters
+    ----------
+        M : Matrice de vectorisation où chaque ligne représente un exemple
+            et les colonnes représentent les features.
+
+    Returns
+    -------
+        Matrice de vectorisation normalisée.
+    """
 
     l2_norms = np.sqrt(M.multiply(M).sum(axis=1))
     return M.multiply(1 / l2_norms.reshape(-1, 1)).tocsr()

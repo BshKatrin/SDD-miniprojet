@@ -212,6 +212,7 @@ def dist_euclidienne(X: Union[np.ndarray, pd.DataFrame], Y: Union[np.ndarray, pd
 
 
 def dist_cosine(X: Union[np.ndarray, pd.DataFrame], Y: Union[np.ndarray, pd.DataFrame]) -> Union[np.ndarray, pd.DataFrame]:
+    """Calcule la distance cosinus entre les exemples X et Y"""
     return 1 - np.dot(X, Y) / (np.linalg.norm(X) * np.linalg.norm(Y))
 
 
@@ -437,12 +438,12 @@ def maj_dist_matrix(dist_matrix: np.ndarray, i0: int, i1: int, indices_map: Dict
 # -- complete CHA : la distance entre 2 clusters est donné par la distance maximal entre deux points des deux clusters
 
 
-def CHA_complete(df: pd.DataFrame, dist_func: Callable = dist_euclidienne, verbose: bool = False, dendrogramme: bool = False):
+def CHA_complete(df: Union[np.ndarray, pd.DataFrame], dist_func: Callable = dist_euclidienne, verbose: bool = False, dendrogramme: bool = False):
     """Effecteur un clustering hiérarchique avec linkage = "complete" (jusqu'à la création d'un cluster unique).
 
     Parameters
     ----------
-        df           : DataFrame avec des exemples 
+        df           : DataFrame ou array avec des exemples (lignes = exemples, colonnes = features).
         dist_func    : Fonction qui calcule la distance entre 2 vecteurs.
         verbose      : True s'il faut afficher les étapes de clustering hiérarchique. False, sinon.
         dendrogramme : True s'il faut plotter dendrogramme. Sinon, False.
@@ -502,12 +503,12 @@ def CHA_complete(df: pd.DataFrame, dist_func: Callable = dist_euclidienne, verbo
 # -- Simple CHA : la distance entre 2 clusters est donné par la distance minimale entre deux points des deux clusters
 
 
-def CHA_simple(df: pd.DataFrame, func_dist: Callable = dist_euclidienne, verbose: bool = False, dendrogramme: bool = False):
+def CHA_simple(df: Union[pd.DataFrame, np.ndarray], func_dist: Callable = dist_euclidienne, verbose: bool = False, dendrogramme: bool = False):
     """Effecteur un clustering hiérarchique avec linkage = "simple" (jusqu'à la création d'un cluster unique).
 
     Parameters
     ----------
-        df           : DataFrame avec des exemples 
+        df           : DataFrame ou array avec des exemples (lignes = exemples, colonnes = features).
         dist_func    : Fonction qui calcule la distance entre 2 vecteurs.
         verbose      : True s'il faut afficher les étapes de clustering hiérarchique. False, sinon.
         dendrogramme : True s'il faut plotter dendrogramme. Sinon, False.
@@ -565,12 +566,12 @@ def CHA_simple(df: pd.DataFrame, func_dist: Callable = dist_euclidienne, verbose
 # -- Average CHA : la distance entre 2 clusters est donné par la la moyenne des distances entre tous les points des deux clusters
 
 
-def CHA_average(df: pd.DataFrame, func_dist: Callable = dist_euclidienne, verbose: bool = False, dendrogramme: bool = False):
+def CHA_average(df: Union[pd.DataFrame, np.ndarray], func_dist: Callable = dist_euclidienne, verbose: bool = False, dendrogramme: bool = False):
     """Effecteur un clustering hiérarchique avec linkage = "average" (jusqu'à la création d'un cluster unique).
 
     Parameters
     ----------
-        df           : DataFrame avec des exemples 
+        df           : DataFrame ou array avec des exemples (lignes = exemples, colonnes = features).
         dist_func    : Fonction qui calcule la distance entre 2 vecteurs.
         verbose      : True s'il faut afficher les étapes de clustering hiérarchique. False, sinon.
         dendrogramme : True s'il faut plotter dendrogramme. Sinon, False.
@@ -623,7 +624,7 @@ def CHA_average(df: pd.DataFrame, func_dist: Callable = dist_euclidienne, verbos
     return result
 
 
-def CHA(DF: pd.DataFrame, func_dist: Callable = dist_euclidienne, linkage: str = 'centroid', verbose=False, dendrogramme=False):
+def CHA(DF: Union[pd.DataFrame, np.ndarray], func_dist: Callable = dist_euclidienne, linkage: str = 'centroid', verbose=False, dendrogramme=False):
     """
     Effectuer un clustering hiérarchique des données dans le dataframe 'DF' avec la distance euclidienne.
     Les méthodes de la fusion des clusters possibles (linkage) :
@@ -635,7 +636,7 @@ def CHA(DF: pd.DataFrame, func_dist: Callable = dist_euclidienne, linkage: str =
     Parameters
     ----------
         DF : DataFrame avec les données. Il doit contenire uniquement les colonnes avec les données numérique. Les données
-            doivent être normalisées.
+            doivent être normalisées. Array de numpy peut être passé uniquement si linkage est complete | simple | average
         func_dist    : Fonction qui calcule la distance entre 2 vecteurs.
         linkage      : méthode de fusion des clusters. Chaîne de caractères : centroid, complete, simple, average
         verbose      : True s'il faut faire des affichages quels clusters sont fusionnés. Sinon, False.
