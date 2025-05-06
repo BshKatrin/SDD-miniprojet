@@ -150,9 +150,20 @@ def plot_clusters_wordcloud(news: pd.DataFrame, clusters_labels: list[int], stop
     return fig
 
 
-def separabilite(centers: np.array, func_dist: Callable = clust.dist_euclidienne) -> float:
-    """ Calcule la somme des distances entre 2 centroids pour toutes les distances pair à pair
-    Renvoie la somme desistances, la distance minimal et maximal entre les clusters """
+def separabilite(centers: np.ndarray, func_dist: Callable = clust.dist_euclidienne) -> float:
+    """Calcule la métrique 'séparabilité' des clusters. 
+    La séparabilité est définie comment la somme des distances entre chaque paire de centroïdes des clusters.
+
+    Parameters
+    ----------
+        centers   : Les vecteurs des centroïdes des clusters 
+        func_dist : La fonction qui calcule la distance entre 2 vecteurs. Par défaut : distance euclidienne.
+
+    Returns
+    -------
+        La séparibilité des clusters.
+    """
+
     index = range(len(centers))
     pairs = list(itertools.combinations(index, 2))
 
@@ -170,17 +181,28 @@ def separabilite(centers: np.array, func_dist: Callable = clust.dist_euclidienne
     return sep_score, min_dist, max_dist  # min_dist pour séparabilité, max_dist pour Dunn 2
 
 
-def min_dist_clusters(Base: Tuple[np.ndarray, pd.DataFrame], affectation: dict) -> float:
-    """Renvoie la distance minimale entre 2 clusters, la distance entre 2 clusters 
-    étant le min des distances entre 2 points de 2 clusters."""
+def min_dist_clusters(Base: Tuple[np.ndarray, pd.DataFrame], partition: dict[int, list[int]]) -> float:
+    """Calcule la distance minimale entre 2 clusters. La distance entre 2 clusters 
+    est définie comme le minimum des distances entre 2 points de 2 clusters.
 
-    index = affectation.keys()  # indice des clusters
+    Parameters
+    ----------
+        Base        : Dataset des exemples sur lequel le clustering K-means a été appliqué.
+        partition   : Affectation des exemples aux clusters. Dictionnaire qui a pour la clé : le numéro des clusters
+            et la valeur associée : la liste des indices des exemples affectés à ce cluster.
+
+    Returns
+    -------
+        La distance minimale entre 2 clusters. 
+    """
+
+    index = partition.keys()  # indice des clusters
 
     if isinstance(Base, pd.DataFrame):
         Base = Base.to_numpy()
 
     # calculer les distances entre tous les points des pairs
-    clusters = {k: Base[v] for k, v in affectation.items()}
+    clusters = {k: Base[v] for k, v in partition.items()}
 
     min_dist = np.inf
 
@@ -191,8 +213,24 @@ def min_dist_clusters(Base: Tuple[np.ndarray, pd.DataFrame], affectation: dict) 
     return min_dist
 
 
-def co_distance(centers: np.array, Base: pd.DataFrame, partition: dict, func_dist: Callable = clust.dist_euclidienne) -> float:
-    """Renvoie la co distance, somme distance des points au centroid"""
+def co_distance(centers: np.array, Base: pd.DataFrame, partition: dict[int, list[int]], func_dist: Callable = clust.dist_euclidienne) -> float:
+    """Calcule la métrique 'co-distance' pour les clusters. 
+    Co-distance est composée de 2 sommes :
+        - Pour chaque cluster il faut calculer la somme des points dans ce cluster vers son centroïd (notons cette somme Di)
+        - Ensuite, il faut faire la somme sur les Di pour chaque cluster i
+
+    Parameters
+    ---------- 
+        centers   : Les vecteurs des centroïdes des clusters 
+        Base        : Dataset des exemples sur lequel le clustering K-means a été appliqué.
+        partition   : Affectation des exemples aux clusters. Dictionnaire qui a pour la clé : le numéro des clusters
+            et la valeur associée : la liste des indices des exemples affectés à ce cluster.
+        func_dist : La fonction qui calcule la distance entre 2 vecteurs. Par défaut : distance euclidienne
+
+    Returns
+    -------
+        Co-distance calculée pour telle affectation au clusters
+    """
     co_dst_score = 0
 
     if isinstance(Base, pd.DataFrame):
@@ -207,15 +245,31 @@ def co_distance(centers: np.array, Base: pd.DataFrame, partition: dict, func_dis
     return co_dst_score
 
 
-def variation_k_evalution(vect: Tuple[np.ndarray, pd.DataFrame], range_max=26, verbose=False):
-    """Evalue pour un espace défini des exemples (bag of words, frequences ou tf_idf), les métriques définit précédemment:
-    - inertie globale
-    - co-distance
-    - séparabilité
-    - index de Xie-Beni
-    - index de Dunn
+def variation_k_evalution(vect: Tuple[np.ndarray, pd.DataFrame], range_max: int = 26, verbose=False):
+    """Évalue (selon K-means, pour k allant de 1 à 'range_max'-1) pour des messages vectorisés les métriques de la qualité 
+    de clustering suivantes :
+        - inertie globale
+        - co-distance
+        - séparabilité
+        - indice de Xie-Beni
+        - indice de Dunn 
 
-    pour k-means avec k variant de 1 à range_max
+    Parameters
+    ----------
+        vect      : La matrice de vectorisation des messages (lignes = messages, colonnes = mots)
+        range_max : La valeur de K maximale à prendre (K sera dans l'intervalle [1, range_max[)
+        verbose   : Si True, alors les étapes de clustering K-means seront affichés.
+
+    Returns
+    -------
+        6 valeurs sont rétournées :
+            np.ndarray[int] : les valeurs de K évaluées
+            list[float]     : l'inértie globale pour chaque k
+            list[float]     : co-distance pour chaque k 
+            list[float]     : séparabilité pour chaque k 
+            list[float]     : indice de Xie-Beni pour chaque k 
+            list[float]     : indice de Dunn pour chaque k 
+
     """
 
     k_values = np.arange(1, range_max)
@@ -238,22 +292,32 @@ def variation_k_evalution(vect: Tuple[np.ndarray, pd.DataFrame], range_max=26, v
         co_dist = co_distance(centres, vect, affectation)
         k_co_dist.append(co_dist)
 
-        # d_min = min_dist_clusters(bow_no_stopw, affectation)
-
-        # # Dunn index 2
-        # k_Dunn_index2.append(d_min/d_max)
-
-        # XieBeni index = glob_inertia / semin
         k_XB_index.append(inertie_glob/semin)
 
-        # Dunn index = co_dist / semin
         k_Dunn_index.append(co_dist/semin)
 
     return k_values, k_global_inertia, k_co_dist, k_separability, k_XB_index, k_Dunn_index
 
 
-def scores_plot(title, k_values, k_global_inertia, k_co_dist, k_separability, k_XB_index, k_Dunn_index):
-    # affichage des résultats
+def scores_plot(title: str, k_values, k_global_inertia, k_co_dist, k_separability, k_XB_index, k_Dunn_index) -> Figure:
+    """Plotte les métriques d'évaluation de la qualité du clustering K-means en fonction de K.
+    Sur une figure 2 axes sont plottés (à gauche et à droite)
+        - Sur l'axe 1 (à gauche) les métriques séparabilité, inertie globale, co-distance sont plottées
+        - Sur l'axe 2 (à droite) les métriques indice de Xie-Beni, indice de Dunne sont plottés.
+
+    Parameters
+    ----------
+        np.ndarray[int] : les valeurs de K évaluées
+        list[float]     : l'inértie globale pour chaque k
+        list[float]     : co-distance pour chaque k 
+        list[float]     : séparabilité pour chaque k 
+        list[float]     : indice de Xie-Beni pour chaque k 
+        list[float]     : indice de Dunn pour chaque k 
+
+    Returns
+    -------
+        Figure de matplotlib avec heatmap plotté (utile pour la sauvegarde).
+    """
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 3))
     fig.suptitle(title, fontsize=14)
@@ -265,7 +329,7 @@ def scores_plot(title, k_values, k_global_inertia, k_co_dist, k_separability, k_
                      var_name="Métrique", value_name="Valeur de métrique")
     sns.lineplot(data=data, x="k", y="Valeur de métrique", hue="Métrique", ax=ax1)
     ax1.set_xlabel("Nombre de clusters (k)")
-    # ax1.set_title("Indice de Xie-Beni")
+
     ax1.legend(loc="lower left", frameon=False)
 
     # Plot 2 : Indice de Dunn
@@ -275,8 +339,8 @@ def scores_plot(title, k_values, k_global_inertia, k_co_dist, k_separability, k_
                      var_name="Métrique", value_name="Valeur de métrique")
     sns.lineplot(data=data, x="k", y="Valeur de métrique", hue="Métrique", ax=ax2)
     ax2.set_xlabel("Nombre de clusters (k)")
-    # ax2.set_title("Indice de Dunn")
     ax2.legend(loc="lower left", frameon=False)
+
     return fig
 
 
