@@ -16,15 +16,18 @@ Ce `README.md` nous permet d'expliquer à quoi correspond chaque fichier supplé
 
 ## Organisation des fichiers
 
+On a divisé le notebook `miniprojet.ipynb` en plusieurs notebooks afin de mieux organiser nos expérimentations et de faciliter la navigation.
+
 ### Notebooks (`/miniprojet`)
 
 **Remarque** : l'ordre dans lequel on a mis les fichiers est un ordre recommandé pour la lecture des notebooks.
 
-- Dans le notebook `sampling.ipynb` on regarde la distribution des `targets` et prend 10% de dataset `20newsgroups` en préservant la distribution des `targets`.
+- Dans le notebook `sampling.ipynb` on regarde la distribution des `targets` et prend 10% de dataset `20newsgroups` en préservant la distribution des `targets`. Ce notebook doit **_obligatoirement_** être exécuté en premier, car il génère le fichier `.csv` (10% de dataset) utilisé par l’ensemble des autres notebooks.
 - `supervised_sw.ipynb` contient l'évaluation des classifieurs sur le dataset **avec** stopwords
 - `supervised_no_sw.ipynb` contient l'évaluation des classifieurs sur le dataset **sans** stopwords
 - Dans le notebook `unsupervised_no_sw.ipynb` on travaille sur le dataset **sans** stopwords. Ce notebook contient l'explication sur le fléau de la dimension, l'identification de $k$ pour un algorithme `K-means` et le clustering hiérarchique directement sur les targets (voir le notebook pour le raisonnement et le méthode de vectorisation).
 - `visualization.ipynb` contient l'analyse des clusters trouvés avec `K-means` pour $k=18$ et la visualisation des données.
+- Enfin, le notebook `extra_plot.ipynb` n’est pas indispensable à l’exécution. Il a été utilisé uniquement pour générer les graphiques du rapport.
 
 ### Librairie (`/iads`)
 

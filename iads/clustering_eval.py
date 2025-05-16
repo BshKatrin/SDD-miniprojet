@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, Tuple
+from typing import Callable, Union
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,7 @@ import seaborn as sns
 from scipy.sparse import csr_array
 from scipy.spatial.distance import cdist
 from sklearn.decomposition import PCA
+from sklearn.metrics import pairwise_distances
 
 from wordcloud import WordCloud
 import iads.Clustering as clust
@@ -152,7 +153,7 @@ def plot_clusters_wordcloud(news: pd.DataFrame, clusters_labels: list[int], stop
 
 def separabilite(centers: np.ndarray, func_dist: Callable = clust.dist_euclidienne) -> float:
     """Calcule la métrique 'séparabilité' des clusters. 
-    La séparabilité est définie comment la somme des distances entre chaque paire de centroïdes des clusters.
+    La séparabilité est définie comment le minimum des distances entre les centroids des clusters.
 
     Parameters
     ----------
@@ -167,21 +168,16 @@ def separabilite(centers: np.ndarray, func_dist: Callable = clust.dist_euclidien
     index = range(len(centers))
     pairs = list(itertools.combinations(index, 2))
 
-    sep_score = 0
     min_dist = np.inf
-    max_dist = -1
 
     for i, j in pairs:
         distance = func_dist(centers[i], centers[j])
-        sep_score += distance
-
         min_dist = min(min_dist, distance)
-        max_dist = max(max_dist, distance)
 
-    return sep_score, min_dist, max_dist  # min_dist pour séparabilité, max_dist pour Dunn 2
+    return min_dist
 
 
-def min_dist_clusters(Base: Tuple[np.ndarray, pd.DataFrame], partition: dict[int, list[int]]) -> float:
+def min_dist_clusters(Base: Union[np.ndarray, pd.DataFrame], partition: dict[int, list[int]]) -> float:
     """Calcule la distance minimale entre 2 clusters. La distance entre 2 clusters 
     est définie comme le minimum des distances entre 2 points de 2 clusters.
 
@@ -213,8 +209,36 @@ def min_dist_clusters(Base: Tuple[np.ndarray, pd.DataFrame], partition: dict[int
     return min_dist
 
 
-def co_distance(centers: np.array, Base: pd.DataFrame, partition: dict[int, list[int]], func_dist: Callable = clust.dist_euclidienne) -> float:
-    """Calcule la métrique 'co-distance' pour les clusters. 
+def max_cluster_diameter(Base: Union[np.ndarray, pd.DataFrame], partition: dict[int, list[int]]) -> float:
+    """Calcule le diamétre maximale des clusters. Un diamètre est défini comme la distance entre les points les plus éloignés
+        dans ce cluster.
+
+    Parameters
+    ---------- 
+        Base        : Dataset des exemples sur lequel le clustering K-means a été appliqué.
+        partition   : Affectation des exemples aux clusters. Dictionnaire qui a pour la clé : le numéro des clusters
+            et la valeur associée : la liste des indices des exemples affectés à ce cluster.
+
+    Returns
+    -------
+        Le diamétre maximale trouvé.
+    """
+
+    max_dst = 0
+
+    if isinstance(Base, pd.DataFrame):
+        Base = Base.to_numpy()
+
+    for clust, index in partition.items():
+        points = Base[index]
+        max_dst = max(max_dst, np.max(pairwise_distances(points, points)))
+
+    return max_dst
+
+
+def co_distance(centers: np.array, Base: Union[pd.DataFrame, np.ndarray],
+                partition: dict[int, list[int]], func_dist: Callable = clust.dist_euclidienne) -> float:
+    """Calcule la métrique 'co-distance' pour les clusters.
     Co-distance est composée de 2 sommes :
         - Pour chaque cluster il faut calculer la somme des points dans ce cluster vers son centroïd (notons cette somme Di)
         - Ensuite, il faut faire la somme sur les Di pour chaque cluster i
@@ -229,7 +253,7 @@ def co_distance(centers: np.array, Base: pd.DataFrame, partition: dict[int, list
 
     Returns
     -------
-        Co-distance calculée pour telle affectation au clusters
+        Co-distance calculée pour telle affectation au clusters. 
     """
     co_dst_score = 0
 
@@ -238,14 +262,13 @@ def co_distance(centers: np.array, Base: pd.DataFrame, partition: dict[int, list
 
     for clust, index in partition.items():
         points = Base[index]
-
-        distances = np.array([func_dist(point, centers[clust]) for point in points])
-        co_dst_score += np.sum(distances)
+        distances = np.sum(pairwise_distances(centers[clust].reshape(1, -1), points))
+        co_dst_score += distances
 
     return co_dst_score
 
 
-def variation_k_evalution(vect: Tuple[np.ndarray, pd.DataFrame], range_max: int = 26, verbose=False):
+def variation_k_evalution(vect: Union[pd.DataFrame, np.ndarray], range_max: int = 26, verbose=False):
     """Évalue (selon K-means, pour k allant de 1 à 'range_max'-1) pour des messages vectorisés les métriques de la qualité 
     de clustering suivantes :
         - inertie globale
@@ -286,15 +309,16 @@ def variation_k_evalution(vect: Tuple[np.ndarray, pd.DataFrame], range_max: int 
         inertie_glob = clust.inertie_globale(vect, affectation)
         k_global_inertia.append(inertie_glob)
 
-        sep_score, semin, d_max = separabilite(centres)  # semin dist min between 2 centroids
+        sep_score = separabilite(centres)  # semin dist min between 2 centroids
         k_separability.append(sep_score)
 
         co_dist = co_distance(centres, vect, affectation)
         k_co_dist.append(co_dist)
 
-        k_XB_index.append(inertie_glob/semin)
+        max_dist = max_cluster_diameter(vect, affectation)
 
-        k_Dunn_index.append(co_dist/semin)
+        k_XB_index.append(inertie_glob/(vect.shape[0] * sep_score))
+        k_Dunn_index.append(max_dist/sep_score)
 
     return k_values, k_global_inertia, k_co_dist, k_separability, k_XB_index, k_Dunn_index
 
@@ -319,27 +343,29 @@ def scores_plot(title: str, k_values, k_global_inertia, k_co_dist, k_separabilit
         Figure de matplotlib avec heatmap plotté (utile pour la sauvegarde).
     """
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 3))
+    fig, axes = plt.subplots(2, 2, figsize=(15, 5))
     fig.suptitle(title, fontsize=14)
 
-    # Plot 1
+    # Plot 1 : Métriques
     data = pd.DataFrame(data={"k": k_values, "Inertie globale": k_global_inertia,
                         "Séparabilité": k_separability, "Co-distance": k_co_dist})
     data = data.melt(id_vars="k", value_vars=["Inertie globale", "Séparabilité", "Co-distance"],
                      var_name="Métrique", value_name="Valeur de métrique")
-    sns.lineplot(data=data, x="k", y="Valeur de métrique", hue="Métrique", ax=ax1)
-    ax1.set_xlabel("Nombre de clusters (k)")
 
-    ax1.legend(loc="lower left", frameon=False)
+    sns.lineplot(data=data[data["Métrique"] != "Séparabilité"], x="k",
+                 y="Valeur de métrique", hue="Métrique", ax=axes[0, 0])
+    sns.lineplot(data=data[data["Métrique"] == "Séparabilité"], x="k",
+                 y="Valeur de métrique", hue="Métrique", ax=axes[1, 0])
+    axes[0, 0].legend(loc="lower left", frameon=False)
+    axes[1, 0].legend(frameon=False)
 
-    # Plot 2 : Indice de Dunn
+    # Plot 2 : Index
     data = pd.DataFrame(data={"k": k_values,
-                        "Indice de Xie-Bene": k_XB_index, "Indice de Dunn": k_Dunn_index})
-    data = data.melt(id_vars="k", value_vars=["Indice de Dunn", "Indice de Xie-Bene"],
+                        "Indice de Xie-Beni": k_XB_index, "Indice de Dunn": k_Dunn_index})
+    data = data.melt(id_vars="k", value_vars=["Indice de Dunn", "Indice de Xie-Beni"],
                      var_name="Métrique", value_name="Valeur de métrique")
-    sns.lineplot(data=data, x="k", y="Valeur de métrique", hue="Métrique", ax=ax2)
-    ax2.set_xlabel("Nombre de clusters (k)")
-    ax2.legend(loc="lower left", frameon=False)
+    sns.lineplot(data=data, x="k", y="Valeur de métrique", hue="Métrique", ax=axes[0, 1])
+    axes[0, 1].legend(loc="lower left", frameon=False)
 
     return fig
 
