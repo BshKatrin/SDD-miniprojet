@@ -2,11 +2,6 @@
 
 Ce `README.md` nous permet d'expliquer à quoi correspond chaque fichier supplémentaire qu'on a créé pour ce projet.
 
-## Groupe 1
-
-- BOGUSH Ekaterina
-- CHU Amélie
-
 ## Remarques
 
 - On travaille **_sur 10% de dataset_** `20newsgroups` (la distribution des `targets` est préservée). Sinon, nos algorithmes de clustering et classifieurs implementés dans la librairie `iads` prennent trop de temps
